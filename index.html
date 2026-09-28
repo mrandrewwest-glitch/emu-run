@@ -103,6 +103,41 @@
   .stats dt { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
   .stats dd { margin: 0; font-family: var(--display); font-size: 30px; font-variant-numeric: tabular-nums; }
   .best { margin: 0; font-weight: 800; font-size: 15px; }
+  .namerow { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; font-weight: 800; font-size: 14px; }
+  .namerow input {
+    font: 800 16px var(--body);
+    width: 11em;
+    max-width: 100%;
+    padding: 6px 10px;
+    border: 3px solid var(--sign-ink);
+    border-radius: 8px;
+    background: #fff8e0;
+    color: var(--sign-ink);
+  }
+  .namerow input:focus-visible { outline: 3px solid var(--sign-ink); outline-offset: 2px; }
+  .board { display: grid; gap: 4px; }
+  .board h3 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .board ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; counter-reset: rank; }
+  .board li {
+    counter-increment: rank;
+    display: grid;
+    grid-template-columns: 1.6em 1fr auto auto;
+    gap: 10px;
+    align-items: baseline;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+  .board li::before { content: counter(rank); font-family: var(--display); }
+  .board li .n { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board li .sc { font-family: var(--display); font-size: 16px; }
+  .board li.me { background: var(--sign-ink); color: var(--sign); }
+  .board .empty { display: block; text-align: center; opacity: 0.75; }
+  /* keep the full-tummy dingo visible on wide screens */
+  @media (min-width: 820px) { #over { justify-items: end; padding-right: 6vw; } }
   .go {
     appearance: none;
     border: 0;
@@ -126,6 +161,8 @@
     .sign h2 { font-size: 30px; }
     .tag, .controls, .controls dt { font-size: 13px; }
     .keys { display: none; }
+    .board li { font-size: 13px; padding: 0 8px; }
+    .stats dd { font-size: 24px; }
     .go { font-size: 22px; padding: 10px 16px 7px; }
   }
 
@@ -175,6 +212,14 @@
         <div><dt>Score</dt><dd id="oScore">0</dd></div>
       </dl>
       <p class="best" id="oBest"></p>
+      <div class="namerow" id="nameRow" hidden>
+        <label for="pname">Name for the board</label>
+        <input id="pname" type="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Your name">
+      </div>
+      <div class="board">
+        <h3>High scores on this device</h3>
+        <ol id="board"></ol>
+      </div>
       <button class="go" id="again" type="button">RUN AGAIN</button>
     </div>
   </div>
@@ -217,9 +262,61 @@
   const hash = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-  let best = 0;
-  try { best = parseInt(localStorage.getItem('emuRunBest') || '0', 10) || 0; } catch (e) {}
-  function saveBest() { try { localStorage.setItem('emuRunBest', String(best)); } catch (e) {} }
+  // High score board, stored on this device only
+  const BOARD_SIZE = 5;
+  let scores = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem('emuRunScores') || '[]');
+    if (Array.isArray(raw)) scores = raw.filter((r) => r && typeof r.s === 'number').slice(0, BOARD_SIZE);
+    const oldBest = parseInt(localStorage.getItem('emuRunBest') || '0', 10) || 0;
+    if (!scores.length && oldBest > 0) scores = [{ s: oldBest, m: 0, n: 'Emu', id: 0 }];
+  } catch (e) {}
+  let playerName = 'Emu';
+  try { playerName = localStorage.getItem('emuRunName') || 'Emu'; } catch (e) {}
+  let lastEntryId = null;
+  const best = () => (scores.length ? scores[0].s : 0);
+  function saveScores() { try { localStorage.setItem('emuRunScores', JSON.stringify(scores)); } catch (e) {} }
+  function addScore(s, m) {
+    if (s <= 0) return -1;
+    const entry = { s, m, n: playerName, id: Date.now() };
+    scores.push(entry);
+    scores.sort((a, b) => b.s - a.s || a.id - b.id);
+    scores = scores.slice(0, BOARD_SIZE);
+    const rank = scores.indexOf(entry);
+    if (rank >= 0) { lastEntryId = entry.id; saveScores(); }
+    return rank;
+  }
+  function renderBoard() {
+    const ol = document.getElementById('board');
+    ol.textContent = '';
+    if (!scores.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'No runs yet';
+      ol.appendChild(li);
+      return;
+    }
+    for (const r of scores) {
+      const li = document.createElement('li');
+      if (r.id === lastEntryId) li.className = 'me';
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = r.n || 'Emu';
+      const m = document.createElement('span'); m.textContent = r.m ? r.m + ' m' : '';
+      const sc = document.createElement('span'); sc.className = 'sc'; sc.textContent = r.s;
+      li.append(n, m, sc);
+      ol.appendChild(li);
+    }
+  }
+  const nameInput = document.getElementById('pname');
+  nameInput.addEventListener('input', () => {
+    playerName = nameInput.value.trim().slice(0, 12) || 'Emu';
+    try { localStorage.setItem('emuRunName', playerName); } catch (e) {}
+    const entry = scores.find((r) => r.id === lastEntryId);
+    if (entry) { entry.n = playerName; saveScores(); renderBoard(); }
+  });
+  nameInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { nameInput.blur(); document.getElementById('again').focus({ preventScroll: true }); }
+  });
 
   // ---------- audio ----------
   let AC = null, muted = false;
@@ -263,6 +360,7 @@
     hit: () => { tone(200, 55, 0.3, 'sawtooth', 0.12); noise(0.15, 0.15); },
     smash: () => { noise(0.25, 0.25); tone(500, 120, 0.2, 'square', 0.05); },
     feather: () => { [660, 880, 1100, 1320].forEach((f, i) => tone(f, f * 1.02, 0.12, 'triangle', 0.08, i * 0.07)); },
+    burp: () => { tone(110, 70, 0.35, 'sawtooth', 0.14); tone(90, 60, 0.3, 'square', 0.06, 0.05); },
     howl: () => { tone(320, 760, 0.55, 'sine', 0.14); tone(760, 430, 0.8, 'sine', 0.12, 0.55); },
   };
   function setMuteLabel() {
@@ -284,7 +382,7 @@
     mode: 'title', t: 0, speed: 140, dist: 0, berries: 0, smashes: 0,
     gap: 1, dingoX: -200, obstacles: [], pickups: [], particles: [],
     nextSpawn: 700, inv: 0, gold: 0, shake: 0, caughtT: 0, inGrass: false,
-    roadTrain: null, nextTrain: 4000, flash: 0,
+    roadTrain: null, nextTrain: 4000, flash: 0, eaten: false, eatenT: 0, burped: false, fatX: 0,
   };
   const emu = {
     y: 0, vy: 0, ground: true, duck: 0, duckHold: false, fastFall: false,
@@ -296,7 +394,7 @@
       mode: 'play', t: 0, speed: 200, dist: 0, berries: 0, smashes: 0,
       gap: 1, dingoX: -260, obstacles: [], pickups: [], particles: [],
       nextSpawn: 900, inv: 0, gold: 0, shake: 0, caughtT: 0, inGrass: false,
-      roadTrain: null, nextTrain: 3000, flash: 0,
+      roadTrain: null, nextTrain: 3000, flash: 0, eaten: false, eatenT: 0, burped: false, fatX: 0,
     });
     Object.assign(emu, {
       y: 0, vy: 0, ground: true, duck: 0, duckHold: false, fastFall: false,
@@ -368,9 +466,9 @@
   const held = new Set();
   window.addEventListener('keydown', (e) => {
     const k = e.key;
-    if (S.mode === 'caught') return;
+    if (S.mode === 'caught' || S.mode === 'eaten') return;
     if (S.mode !== 'play') {
-      if ((k === ' ' || k === 'Enter') && document.activeElement?.tagName !== 'BUTTON') {
+      if ((k === ' ' || k === 'Enter') && !['BUTTON', 'INPUT'].includes(document.activeElement?.tagName)) {
         e.preventDefault(); startGame();
       }
       return;
@@ -397,7 +495,7 @@
   document.getElementById('again').addEventListener('click', startGame);
   function showBestTitle() {
     const el = document.getElementById('bestTitle');
-    if (best > 0) { el.hidden = false; el.textContent = 'Best score: ' + best; }
+    if (best() > 0) { el.hidden = false; el.textContent = 'Best score on this device: ' + best(); }
   }
   showBestTitle();
 
@@ -411,8 +509,11 @@
     wombat: { w: 60,  h: 36, kind: 'hard', from: 3000, vx: 70 },
     bush:   { w: 88,  h: 94, kind: 'bush', from: 3000 },
     magpie: { w: 46,  h: 0,  kind: 'hard', from: 5200, vx: 230 },
+    goanna: { w: 104, h: 24, kind: 'hard', from: 4000, vx: 150 },
     roo:    { w: 44,  h: 84, kind: 'hard', from: 7000, vx: 110 },
+    cassowary: { w: 56, h: 102, kind: 'hard', from: 8500, vx: 190 },
   };
+  const WARN = ['magpie', 'roo', 'goanna', 'cassowary'];
   let lastType = '';
   function spawn() {
     const pool = Object.keys(DEFS).filter((k) => S.dist >= DEFS[k].from && k !== lastType);
@@ -421,7 +522,7 @@
     const d = DEFS[type];
     const o = { type, kind: d.kind, w: d.w, h: d.h, vx: d.vx || 0, x: W + 30, ph: Math.random() * 6, done: false, dead: false, fy: 70 };
     if (type === 'grass') o.w = rnd(260, 360);
-    if (type === 'magpie' || type === 'roo') o.x = W + 260; // gives time for the warning
+    if (WARN.includes(type)) o.x = W + 260; // gives time for the warning
     S.obstacles.push(o);
 
     // berries in the gap after it
@@ -463,6 +564,9 @@
         r: rnd(4, 8), rot: rnd(0, 6), vr: rnd(-10, 10), life: rnd(0.8, 1.4), max: 1.4, c: colors[i % colors.length],
       });
     }
+  }
+  function featherFall(x, y) {
+    S.particles.push({ kind: 'feather', x, y, vx: rnd(-20, 20), vy: rnd(25, 55), rot: rnd(-1, 1), ph: rnd(0, 6), life: rnd(2.2, 3.4), max: 3.4, c: Math.random() < 0.5 ? '#3e2c20' : '#6b4e36' });
   }
   function popText(x, y, text, c) {
     S.particles.push({ kind: 'text', x, y, vx: 0, vy: -70, life: 0.8, max: 0.8, text, c });
@@ -526,6 +630,21 @@
     S.shake = Math.max(0, S.shake - dt);
     S.flash = Math.max(0, S.flash - dt);
 
+    if (S.eaten) {
+      // dingo sitting with a full tummy; the world has stopped
+      S.eatenT += dt;
+      S.speed = 0;
+      if (!S.burped && S.eatenT > 0.8) {
+        S.burped = true;
+        sfx.burp();
+        popText(S.fatX + 70, GROUND - 215, 'BURP!', '#fff3d6');
+      }
+      if (S.eatenT < 1.2 && Math.random() < dt * 3) featherFall(S.fatX + rnd(-90, 110), GROUND - rnd(180, 240));
+      updateParticles(dt);
+      if (S.mode === 'eaten' && S.eatenT > 2.6) gameOver();
+      return;
+    }
+
     if (S.mode === 'title' || S.mode === 'over') {
       S.speed = 140;
       S.dist += S.speed * dt;
@@ -544,7 +663,14 @@
       if (Math.random() < 0.5) puff(EX, GROUND - 50, 1, 1.6);
       moveWorld(dt);
       updateParticles(dt);
-      if (S.caughtT > 1.3) gameOver();
+      if (S.caughtT > 1.3) {
+        S.mode = 'eaten';
+        S.eaten = true;
+        S.eatenT = 0;
+        S.fatX = EX - 20;
+        puff(S.fatX, GROUND - 60, 16, 1.5);
+        for (let i = 0; i < 6; i++) featherFall(S.fatX + rnd(-90, 110), GROUND - rnd(150, 230));
+      }
       return;
     }
 
@@ -676,6 +802,10 @@
         p.r += p.grow * dt;
       } else if (p.kind === 'leaf') {
         p.vy += 900 * dt; p.x += (p.vx - S.speed * 0.6) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      } else if (p.kind === 'feather') {
+        p.x += (p.vx + Math.sin(S.t * 3 + p.ph) * 40) * dt;
+        p.y = Math.min(GROUND - 4, p.y + p.vy * dt);
+        p.rot = Math.sin(S.t * 3 + p.ph) * 0.8;
       } else {
         p.x += p.vx * dt; p.y += p.vy * dt;
       }
@@ -689,12 +819,20 @@
   function gameOver() {
     S.mode = 'over';
     const sc = score();
-    const newBest = sc > best;
-    if (newBest) { best = sc; saveBest(); }
-    document.getElementById('oDist').textContent = Math.floor(S.dist / 40) + ' m';
+    const prevBest = best();
+    const metres = Math.floor(S.dist / 40);
+    const rank = addScore(sc, metres);
+    if (rank < 0) lastEntryId = null;
+    document.getElementById('oDist').textContent = metres + ' m';
     document.getElementById('oBerries').textContent = S.berries;
     document.getElementById('oScore').textContent = sc;
-    document.getElementById('oBest').textContent = newBest ? 'New best score!' : 'Best score: ' + best;
+    document.getElementById('oBest').textContent =
+      rank === 0 && sc > prevBest ? 'New high score!' :
+      rank > 0 ? 'You made the board at number ' + (rank + 1) + '!' :
+      'Best score: ' + best();
+    document.getElementById('nameRow').hidden = rank < 0;
+    nameInput.value = playerName === 'Emu' ? '' : playerName;
+    renderBoard();
     showBestTitle();
     overEl.hidden = false;
     document.getElementById('again').focus({ preventScroll: true });
@@ -895,6 +1033,91 @@
         ctx.beginPath(); ctx.moveTo(x + 8, g - 30); ctx.lineTo(x + 12, g - 38); ctx.lineTo(x + 16, g - 29); ctx.fill();
         break;
       }
+      case 'goanna': {
+        // long lizard scuttling left, tail swishing behind
+        const sw = Math.sin(o.ph * 16);
+        ctx.save(); ctx.translate(x, g);
+        ctx.strokeStyle = '#4d4636'; ctx.lineCap = 'round';
+        // legs (sprawled, alternating)
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(26, -10); ctx.lineTo(18 + sw * 6, -1);
+        ctx.moveTo(30, -10); ctx.lineTo(38 - sw * 6, -1);
+        ctx.moveTo(58, -10); ctx.lineTo(52 - sw * 6, -1);
+        ctx.moveTo(62, -10); ctx.lineTo(70 + sw * 6, -1);
+        ctx.stroke();
+        // tail
+        ctx.lineWidth = 9;
+        ctx.beginPath(); ctx.moveTo(70, -12); ctx.quadraticCurveTo(92, -12 + sw * 6, o.w + 20, -6 - sw * 8); ctx.stroke();
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(o.w + 14, -6 - sw * 7); ctx.lineTo(o.w + 30, -4 - sw * 10); ctx.stroke();
+        // body
+        ctx.fillStyle = '#5a5240';
+        ctx.beginPath(); ctx.ellipse(46, -14, 30, 10, 0, 0, Math.PI * 2); ctx.fill();
+        // neck + head
+        ctx.beginPath(); ctx.ellipse(14, -16, 12, 7, -0.1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(8, -22); ctx.quadraticCurveTo(-10, -20, -14, -15); ctx.quadraticCurveTo(-8, -10, 8, -10); ctx.fill();
+        // yellow banding
+        ctx.fillStyle = '#e0c25a';
+        for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.ellipse(28 + i * 9, -17 + (i % 2) * 3, 3, 2, 0, 0, Math.PI * 2); ctx.fill(); }
+        for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(80 + i * 10, -12 + sw * (2 + i), 2.5, 1.8, 0, 0, Math.PI * 2); ctx.fill(); }
+        // eye
+        ctx.fillStyle = '#16110c';
+        ctx.beginPath(); ctx.arc(-2, -18, 1.8, 0, Math.PI * 2); ctx.fill();
+        // flicking forked tongue
+        if (Math.sin(o.ph * 9) > 0.2) {
+          ctx.strokeStyle = '#d24f6a'; ctx.lineWidth = 1.8;
+          ctx.beginPath(); ctx.moveTo(-14, -15); ctx.lineTo(-24, -15); ctx.lineTo(-28, -18); ctx.moveTo(-24, -15); ctx.lineTo(-28, -12); ctx.stroke();
+        }
+        ctx.restore();
+        break;
+      }
+      case 'cassowary': {
+        // big grumpy rainforest bird charging left
+        const t = o.ph * 16;
+        ctx.save(); ctx.translate(x + 30, g);
+        ctx.strokeStyle = '#8c8a7a'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (let k = 0; k < 2; k++) {
+          const a = t + k * Math.PI;
+          const fx = Math.cos(a) * 18, fy = Math.min(0, Math.sin(a) * 10);
+          ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.moveTo(0, -46); ctx.lineTo(fx * 0.4 + 6, -24); ctx.lineTo(fx, fy - 2); ctx.stroke();
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(fx, fy - 2); ctx.lineTo(fx - 10, fy); ctx.moveTo(fx, fy - 2); ctx.lineTo(fx - 8, fy + 3); ctx.stroke();
+        }
+        // shaggy black body
+        ctx.fillStyle = '#16110c';
+        ctx.beginPath(); ctx.ellipse(4, -60, 30, 22, 0.12, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) { const fx = -20 + i * 9; ctx.moveTo(fx - 5, -46); ctx.lineTo(fx + 2, -32); ctx.lineTo(fx + 5, -46); }
+        ctx.moveTo(28, -66); ctx.lineTo(44, -58); ctx.lineTo(30, -52);
+        ctx.fill();
+        // blue neck
+        ctx.strokeStyle = '#2f7fc1'; ctx.lineWidth = 11;
+        ctx.beginPath(); ctx.moveTo(-18, -70); ctx.quadraticCurveTo(-28, -84, -24, -96); ctx.stroke();
+        ctx.strokeStyle = '#6a3fa0'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(-14, -74); ctx.quadraticCurveTo(-22, -84, -18, -92); ctx.stroke();
+        // red wattles
+        ctx.fillStyle = '#d8312a';
+        ctx.beginPath(); ctx.ellipse(-26, -76, 4, 9, 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(-20, -74, 3.5, 8, -0.1, 0, Math.PI * 2); ctx.fill();
+        // head + casque
+        ctx.fillStyle = '#2f7fc1';
+        ctx.beginPath(); ctx.ellipse(-26, -100, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8a5a2e';
+        ctx.beginPath(); ctx.moveTo(-32, -104); ctx.quadraticCurveTo(-30, -122, -18, -118); ctx.quadraticCurveTo(-18, -108, -20, -104); ctx.fill();
+        ctx.fillStyle = '#2a2a2a';
+        ctx.beginPath(); ctx.moveTo(-34, -102); ctx.lineTo(-48, -97); ctx.lineTo(-33, -95); ctx.fill();
+        // angry eye
+        ctx.fillStyle = '#f2c230';
+        ctx.beginPath(); ctx.arc(-28, -101, 2.8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#16110c';
+        ctx.beginPath(); ctx.arc(-29, -101, 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#16110c'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-34, -107); ctx.lineTo(-24, -104); ctx.stroke();
+        ctx.restore();
+        break;
+      }
       case 'roo': {
         const hy = g - (o.hop || 0);
         ctx.save(); ctx.translate(x + 22, hy);
@@ -982,8 +1205,8 @@
 
   function drawWarnings() {
     for (const o of S.obstacles) {
-      if ((o.type === 'magpie' || o.type === 'roo') && o.x > W - 10) {
-        const y = o.type === 'magpie' ? GROUND - 100 : GROUND - 60;
+      if (WARN.includes(o.type) && o.x > W - 10) {
+        const y = o.type === 'magpie' ? GROUND - 100 : o.type === 'goanna' ? GROUND - 34 : GROUND - 60;
         const pulse = 0.6 + Math.sin(S.t * 18) * 0.4;
         ctx.save();
         ctx.globalAlpha = pulse;
@@ -1245,6 +1468,85 @@
     ctx.restore();
   }
 
+  function drawFatDingo(x) {
+    const t = S.eatenT;
+    const pop = Math.min(1.35, 1 + t * 1.5);
+    const breathe = 1 + Math.sin(S.t * 2.5) * 0.03;
+    ctx.save();
+    ctx.translate(x, GROUND);
+    ctx.scale(pop, pop);
+    // shadow
+    ctx.fillStyle = 'rgba(80, 30, 15, 0.3)';
+    ctx.beginPath(); ctx.ellipse(0, 0, 62, 7, 0, 0, Math.PI * 2); ctx.fill();
+    // wagging tail on the ground
+    const wag = Math.sin(S.t * 7) * 8;
+    ctx.strokeStyle = '#d08a3e'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-36, -10); ctx.quadraticCurveTo(-58, -4, -74, -12 + wag); ctx.stroke();
+    ctx.strokeStyle = '#f1d1a2'; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(-70, -11 + wag); ctx.lineTo(-77, -13 + wag); ctx.stroke();
+    // back haunch and foot
+    ctx.fillStyle = '#c47f35';
+    ctx.beginPath(); ctx.ellipse(-24, -26, 26, 24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d08a3e';
+    ctx.beginPath(); ctx.ellipse(-2, -5, 18, 6, 0, 0, Math.PI * 2); ctx.fill();
+    // chest
+    ctx.beginPath(); ctx.ellipse(10, -92, 19, 22, 0.15, 0, Math.PI * 2); ctx.fill();
+    // the big full tummy
+    ctx.save();
+    ctx.translate(8, -48);
+    ctx.scale(breathe, breathe);
+    ctx.fillStyle = '#d08a3e';
+    ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f1d1a2';
+    ctx.beginPath(); ctx.arc(7, 3, 31, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff3d6';
+    ctx.beginPath(); ctx.ellipse(18, -10, 8, 5, -0.6, 0, Math.PI * 2); ctx.fill();
+    // a little emu-beak-shaped bulge
+    ctx.strokeStyle = 'rgba(160, 110, 60, 0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 12); ctx.quadraticCurveTo(12, 8, 20, 14); ctx.stroke();
+    ctx.restore();
+    // front leg, paw patting the tummy
+    const pat = Math.sin(S.t * 6) * 4;
+    ctx.strokeStyle = '#c47f35'; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(24, -86); ctx.quadraticCurveTo(48, -70, 38 + pat * 0.3, -52 + pat); ctx.stroke();
+    ctx.fillStyle = '#f1d1a2';
+    ctx.beginPath(); ctx.ellipse(37 + pat * 0.3, -50 + pat, 6, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // head tilted up, very pleased
+    ctx.save();
+    ctx.translate(16, -118);
+    ctx.rotate(-0.25);
+    ctx.fillStyle = '#d08a3e';
+    ctx.beginPath(); ctx.ellipse(0, 0, 17, 14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(10, -8); ctx.lineTo(34, 0); ctx.lineTo(10, 8); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-12, -8); ctx.lineTo(-10, -28); ctx.lineTo(-1, -11); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-2, -11); ctx.lineTo(4, -28); ctx.lineTo(9, -9); ctx.fill();
+    ctx.fillStyle = '#f1d1a2';
+    ctx.beginPath(); ctx.moveTo(10, 3); ctx.lineTo(32, 1); ctx.lineTo(10, 8); ctx.fill();
+    ctx.fillStyle = '#16110c';
+    ctx.beginPath(); ctx.arc(34, 0, 2.6, 0, Math.PI * 2); ctx.fill();
+    // closed, happy eyes
+    ctx.strokeStyle = '#16110c'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(6, -3, 4, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    // grin
+    ctx.beginPath(); ctx.moveTo(12, 8); ctx.quadraticCurveTo(20, 12, 26, 7); ctx.stroke();
+    // licking chops, then an emu feather stuck in the grin
+    if (Math.sin(S.t * 2) > 0.4) {
+      ctx.fillStyle = '#e8615a';
+      ctx.beginPath(); ctx.ellipse(28, 9, 4, 3, 0.4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(22, 9);
+    ctx.rotate(0.9 + Math.sin(S.t * 3) * 0.1);
+    ctx.fillStyle = '#3e2c20';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, 10, 2, 22); ctx.quadraticCurveTo(-5, 10, 0, 0); ctx.fill();
+    ctx.restore();
+    // pink cheeks
+    ctx.fillStyle = 'rgba(232, 97, 90, 0.35)';
+    ctx.beginPath(); ctx.arc(2, 5, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+
   function drawParticles() {
     for (const p of S.particles) {
       const a = Math.max(0, p.life / p.max);
@@ -1257,6 +1559,14 @@
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
         ctx.fillStyle = p.c;
         ctx.beginPath(); ctx.ellipse(0, 0, p.r, p.r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      } else if (p.kind === 'feather') {
+        ctx.globalAlpha = Math.min(1, a * 2);
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + 1.2);
+        ctx.fillStyle = p.c;
+        ctx.beginPath(); ctx.moveTo(0, -10); ctx.quadraticCurveTo(6, 0, 0, 10); ctx.quadraticCurveTo(-6, 0, 0, -10); ctx.fill();
+        ctx.strokeStyle = p.c; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, 14); ctx.stroke();
         ctx.restore();
       } else if (p.kind === 'spark') {
         ctx.globalAlpha = a;
@@ -1346,8 +1656,12 @@
     // grass behind the emu, other obstacles too
     for (const o of S.obstacles) if (o.type !== 'grass') drawObstacle(o);
     for (const p of S.pickups) drawPickup(p);
-    if (S.mode !== 'title') drawDingo(S.dingoX);
-    drawEmu();
+    if (S.eaten) {
+      drawFatDingo(S.fatX);
+    } else {
+      if (S.mode !== 'title') drawDingo(S.dingoX);
+      drawEmu();
+    }
     // long grass is drawn in front so the emu runs "through" it
     for (const o of S.obstacles) if (o.type === 'grass') drawObstacle(o);
     drawParticles();
