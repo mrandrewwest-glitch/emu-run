@@ -269,7 +269,7 @@
 
   const H = 450;          // world height in units
   const GROUND = 370;     // ground line (y down)
-  const MIN_W = 640;      // narrowest world width shown
+  const MIN_W = 560;      // world width shown on every screen (sets the zoom)
   const GRAV = 2600;
   const JUMP_V = 960;
 
@@ -287,7 +287,7 @@
     scale = Math.min(cvs.height / H, cvs.width / MIN_W);
     W = cvs.width / scale;
     viewH = cvs.height / scale;
-    EX = Math.round(Math.min(240, Math.max(150, W * 0.28)));
+    EX = Math.round(Math.min(240, Math.max(140, W * 0.25)));
   }
   // Phones held sideways: pause and ask for upright
   const rotateEl = document.getElementById('rotate');
@@ -683,6 +683,7 @@
     if (sideways) return;
     if (S.readyT > 0) { S.readyT -= dt; return; }
     S.t += dt;
+    updateSky(dt);
     emu.blink = (emu.blink + dt) % 3.4;
     if (emu.meep > 0) emu.meep -= dt;
     S.shake = Math.max(0, S.shake - dt);
@@ -915,6 +916,111 @@
     ctx.beginPath(); ctx.arc(sx, sy, 150, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#fff1c4';
     ctx.beginPath(); ctx.arc(sx, sy, 52, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ---------- sky: clouds and birds (scenery only, never obstacles) ----------
+  const skyTop = (off) => -off + 80;
+  const skyBot = () => GROUND - 175;
+  function drawClouds(off) {
+    const top = skyTop(off), bot = skyBot();
+    const rows = Math.max(1, Math.round((bot - top) / 150));
+    const rowH = (bot - top) / rows;
+    for (let row = 0; row < rows; row++) {
+      // higher rows drift slower, which reads as further away
+      const p = 0.03 + 0.05 * (row + 1) / rows;
+      const sp = 340;
+      const pos = S.dist * p + S.t * 6;
+      const first = Math.floor(pos / sp) - 1;
+      for (let i = first; i < first + W / sp + 3; i++) {
+        if (hash(i, 40 + row) < 0.35) continue;
+        const x = i * sp - pos + hash(i, 50 + row) * 160;
+        const y = top + rowH * row + hash(i, 60 + row) * rowH * 0.8;
+        const sz = 0.6 + hash(i, 70 + row) * 0.7;
+        const warm = clamp((y - top) / Math.max(1, bot - top), 0, 1);
+        drawCloud(x, y, sz, warm, i);
+      }
+    }
+  }
+  function drawCloud(x, y, s, warm, seed) {
+    // sunset lighting: lavender high up, peach closer to the horizon
+    const body = warm > 0.5 ? '#ffd3a6' : '#cdb6d8';
+    const shade = warm > 0.5 ? '#f0a57c' : '#a98fbe';
+    const puffs = [[-40, 0, 22], [-14, -14, 28], [16, -18, 32], [44, -6, 24], [64, 2, 16]];
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.fillStyle = shade;
+    ctx.beginPath(); ctx.roundRect(-58, -4, 136, 16, 8); ctx.fill();
+    ctx.fillStyle = body;
+    for (const [px, py, r] of puffs) {
+      if (hash(seed, px) < 0.15) continue;
+      ctx.beginPath(); ctx.arc(px, py - 4, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.beginPath(); ctx.roundRect(-58, -12, 136, 16, 8); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  const flocks = [];
+  let nextFlock = 1.5;
+  function updateSky(dt) {
+    nextFlock -= dt;
+    if (nextFlock <= 0) {
+      nextFlock = rnd(3, 7);
+      const eagle = Math.random() < 0.18;
+      const top = skyTop(viewH - H), bot = skyBot();
+      const f = {
+        eagle,
+        x: W + 60,
+        y: rnd(top, bot),
+        vx: eagle ? rnd(20, 40) : rnd(50, 110),
+        ph: rnd(0, 6),
+        birds: [],
+        c: Math.random() < 0.5 ? '#6b4a5c' : '#3a2a30',
+      };
+      const n = eagle ? 1 : 3 + Math.floor(Math.random() * 5);
+      for (let k = 0; k < n; k++) {
+        const side = k % 2 ? 1 : -1, rank = Math.ceil(k / 2);
+        f.birds.push({ dx: rank * 16, dy: side * rank * 10, ph: rnd(0, 6), s: rnd(0.8, 1.1) });
+      }
+      flocks.push(f);
+    }
+    const scroll = S.mode === 'play' || S.mode === 'caught' ? S.speed * 0.12 : 20;
+    for (const f of flocks) { f.x -= (f.vx + scroll) * dt; f.ph += dt; }
+    for (let i = flocks.length - 1; i >= 0; i--) if (flocks[i].x < -200) flocks.splice(i, 1);
+  }
+  function drawBirds() {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const f of flocks) {
+      if (f.eagle) {
+        // wedge-tailed eagle gliding in slow loops
+        const x = f.x, y = f.y + Math.sin(f.ph * 0.8) * 18;
+        const tilt = Math.sin(f.ph * 0.8) * 0.15;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
+        ctx.fillStyle = '#2e2220';
+        ctx.beginPath();
+        ctx.moveTo(-34, -4); ctx.quadraticCurveTo(-12, -10, 0, -2); ctx.quadraticCurveTo(12, -10, 34, -4);
+        ctx.quadraticCurveTo(12, 0, 4, 4); ctx.lineTo(10, 14); ctx.lineTo(0, 10); ctx.lineTo(-10, 14); ctx.lineTo(-4, 4);
+        ctx.quadraticCurveTo(-12, 0, -34, -4);
+        ctx.fill();
+        ctx.beginPath(); ctx.arc(-3, -4, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        continue;
+      }
+      ctx.strokeStyle = f.c;
+      ctx.lineWidth = 2;
+      for (const b of f.birds) {
+        const x = f.x + b.dx, y = f.y + b.dy;
+        const flap = Math.sin(f.ph * 10 + b.ph) * 5 * b.s;
+        const w = 8 * b.s;
+        ctx.beginPath();
+        ctx.moveTo(x - w, y - flap);
+        ctx.quadraticCurveTo(x - w * 0.4, y - 3, x, y);
+        ctx.quadraticCurveTo(x + w * 0.4, y - 3, x + w, y - flap);
+        ctx.stroke();
+      }
+    }
   }
 
   function drawMesas() {
@@ -1707,6 +1813,8 @@
     if (S.shake > 0) ctx.translate(rnd(-5, 5) * S.shake * 3, rnd(-5, 5) * S.shake * 3);
 
     drawSky(off);
+    drawClouds(off);
+    drawBirds();
     drawMesas();
     drawPlain();
     drawGround(off);
