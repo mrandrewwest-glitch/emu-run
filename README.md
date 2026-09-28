@@ -4,6 +4,8 @@ A Roadrunner-style side-scrolling runner. You're an emu legging it across the ou
 
 Open `index.html` in any browser (phone or desktop). No build step, no dependencies.
 
+The game is played with the phone upright. Every screen sees the same distance ahead, so a wide screen gives no advantage (extra width shows as a border). If a phone is turned sideways the game pauses and asks you to turn it back; on Android it also asks the browser to lock to portrait where that's allowed.
+
 ## Controls
 
 | Touch | Keyboard | Move |
