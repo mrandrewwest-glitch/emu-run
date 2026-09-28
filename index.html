@@ -178,6 +178,9 @@
   }
   @keyframes tilt { 0%, 30% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0deg); } }
   @media (prefers-reduced-motion: reduce) { .phone { animation: none; } }
+  @media (orientation: portrait) {
+    #title, #over { align-items: start; padding-top: 60px; }
+  }
   @media (max-height: 500px) {
     .sign { gap: 8px; padding: 12px 16px 14px; width: min(100%, 520px); }
     .sign h1 { font-size: 44px; }
@@ -698,7 +701,7 @@
       if (!S.burped && S.eatenT > 0.8) {
         S.burped = true;
         sfx.burp();
-        popText(S.fatX + 70, GROUND - 215, 'BURP!', '#fff3d6');
+        popText(S.fatX + 100, GROUND - 120, 'BURP!', '#fff3d6');
       }
       if (S.eatenT < 1.2 && Math.random() < dt * 3) featherFall(featherX(), GROUND - rnd(180, 240));
       updateParticles(dt);
@@ -1245,7 +1248,7 @@
         ctx.strokeStyle = '#8c8a7a'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         for (let k = 0; k < 2; k++) {
           const a = t + k * Math.PI;
-          const fx = Math.cos(a) * 18, fy = Math.min(0, Math.sin(a) * 10);
+          const fx = -Math.cos(a) * 18, fy = Math.min(0, Math.sin(a) * 10);
           ctx.lineWidth = 7;
           ctx.beginPath(); ctx.moveTo(0, -46); ctx.lineTo(fx * 0.4 + 6, -24); ctx.lineTo(fx, fy - 2); ctx.stroke();
           ctx.lineWidth = 3;
@@ -1425,7 +1428,7 @@
       ctx.strokeStyle = 'rgba(70, 48, 34, 0.35)';
       ctx.lineWidth = 4;
       for (let j = 0; j < 4; j++) {
-        const a0 = -lt + j * Math.PI / 2;
+        const a0 = lt + j * Math.PI / 2;
         ctx.beginPath(); ctx.ellipse(0, -r, r * 1.15, r, 0, a0, a0 + 0.8); ctx.stroke();
       }
     }
@@ -1434,7 +1437,7 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (let k = 0; k < 2; k++) {
-      const a = -lt + k * Math.PI;
+      const a = lt + k * Math.PI;
       const fx = Math.cos(a) * r * 1.1, fy = -r + Math.sin(a) * r;
       const kx = fx * 0.5 + 6, ky = (hipY + fy) / 2;
       ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
@@ -1635,9 +1638,10 @@
   }
 
   function drawFatDingo(x) {
+    // flat on its back, legs in the air, full tummy, fast asleep
     const t = S.eatenT;
     const pop = Math.min(1.35, 1 + t * 1.5);
-    const breathe = 1 + Math.sin(S.t * 2.5) * 0.025;
+    const breathe = 1 + Math.sin(S.t * 1.8) * 0.045;
     const G = '#d08a3e', GD = '#a9632a', CR = '#f5dcb0', INK = '#16110c';
     ctx.save();
     ctx.translate(x, GROUND);
@@ -1647,122 +1651,124 @@
 
     // shadow
     ctx.fillStyle = 'rgba(80, 30, 15, 0.3)';
-    ctx.beginPath(); ctx.ellipse(-6, 0, 70, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, 86, 7, 0, 0, Math.PI * 2); ctx.fill();
 
-    // bushy tail lying on the ground behind, wagging, white tip
-    const wag = Math.sin(S.t * 7) * 5;
+    // feathers lying about on the ground
+    const groundFeather = (fx, rot, c) => {
+      ctx.save(); ctx.translate(fx, -2); ctx.rotate(rot);
+      ctx.fillStyle = c;
+      ctx.beginPath(); ctx.moveTo(-10, 0); ctx.quadraticCurveTo(0, -6, 10, 0); ctx.quadraticCurveTo(0, 5, -10, 0); ctx.fill();
+      ctx.restore();
+    };
+    groundFeather(-104, 0.2, '#3e2c20');
+    groundFeather(-70, -0.3, '#6b4e36');
+    groundFeather(96, 0.25, '#6b4e36');
+    groundFeather(118, -0.15, '#3e2c20');
+
+    // bushy tail flopped out on the ground, white tip
+    const sway = Math.sin(S.t * 1.8) * 2;
     ctx.fillStyle = G;
     ctx.beginPath();
-    ctx.moveTo(-44, -14);
-    ctx.quadraticCurveTo(-66, -18, -82, -9 + wag);
-    ctx.quadraticCurveTo(-90, -3 + wag, -82, 1);
-    ctx.quadraticCurveTo(-62, 1, -40, -3);
+    ctx.moveTo(-44, -18);
+    ctx.quadraticCurveTo(-70, -20, -88, -8 + sway);
+    ctx.quadraticCurveTo(-96, -1, -86, 2);
+    ctx.quadraticCurveTo(-64, 2, -42, -4);
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = CR;
-    ctx.beginPath(); ctx.ellipse(-84, -4 + wag * 0.7, 7, 5, -0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-89, -4 + sway * 0.6, 8, 5.5, -0.2, 0, Math.PI * 2); ctx.fill();
 
-    // far front leg (shaded), straight down like a sitting dog
-    ctx.fillStyle = GD;
-    ctx.beginPath(); ctx.roundRect(44, -66, 9, 64, 4); ctx.fill();
-    ctx.fillStyle = '#e3c595';
-    ctx.beginPath(); ctx.ellipse(52, -4, 8, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    // far legs sticking up (darker, behind)
+    const kick = Math.sin(S.t * 9) * (Math.sin(S.t * 0.9) > 0.6 ? 4 : 0); // a little dream twitch now and then
+    const leg = (x0, y0, x1, y1, x2, y2, c, pc) => {
+      ctx.strokeStyle = c; ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.fillStyle = pc;
+      ctx.beginPath(); ctx.ellipse(x2, y2, 7, 5, Math.atan2(y2 - y1, x2 - x1), 0, Math.PI * 2); ctx.fill();
+    };
+    leg(-20, -40, -28, -82, -20, -90, GD, '#e3c595');          // far back leg
+    leg(26, -44, 38, -84, 46, -88, GD, '#e3c595');             // far front leg
 
-    // body: haunch low at the back, back sloping up to the shoulders
+    // back, resting on the ground
     ctx.fillStyle = G;
-    ctx.beginPath();
-    ctx.moveTo(-50, -4);
-    ctx.bezierCurveTo(-62, -40, -40, -70, -10, -86);   // rump and back
-    ctx.bezierCurveTo(4, -96, 22, -96, 30, -84);       // shoulders
-    ctx.bezierCurveTo(38, -72, 36, -58, 30, -50);      // chest
-    ctx.lineTo(-20, -4);
-    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -22, 54, 21, 0, 0, Math.PI * 2); ctx.fill();
 
-    // near front leg, straight down, paw tapping happily
-    const tap = Math.max(0, Math.sin(S.t * 5)) * 3;
-    ctx.fillStyle = G;
-    ctx.beginPath(); ctx.roundRect(34, -70, 11, 68 - tap, 5); ctx.fill();
-    ctx.fillStyle = CR;
-    ctx.beginPath(); ctx.ellipse(43, -4 - tap, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = GD; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(45, -8 - tap); ctx.lineTo(45, -2 - tap); ctx.moveTo(49, -8 - tap); ctx.lineTo(49, -2 - tap); ctx.stroke();
-
-    // the big full tummy, bulging out in front
+    // the big full tummy, rising and falling as it snores
     ctx.save();
-    ctx.translate(10, -36);
+    ctx.translate(2, -40);
     ctx.scale(breathe, breathe);
     ctx.fillStyle = G;
-    ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 40, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = CR;
-    ctx.beginPath(); ctx.ellipse(9, 5, 30, 31, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -6, 33, 32, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#fff6e2';
-    ctx.beginPath(); ctx.ellipse(22, -12, 9, 5, -0.7, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    // haunch (folded back leg) and hind paw
-    ctx.fillStyle = G;
-    ctx.beginPath(); ctx.ellipse(-32, -26, 22, 24, -0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = GD; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(-32, -26, 17, Math.PI * 1.05, Math.PI * 1.7); ctx.stroke();
-    ctx.fillStyle = CR;
-    ctx.beginPath(); ctx.ellipse(-16, -5, 16, 5.5, 0, 0, Math.PI * 2); ctx.fill();
-
-
-
-    // neck
-    ctx.fillStyle = G;
-    ctx.beginPath();
-    ctx.moveTo(4, -92); ctx.lineTo(18, -122); ctx.lineTo(38, -112); ctx.lineTo(32, -80);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = CR;
-    ctx.beginPath();
-    ctx.moveTo(30, -118); ctx.quadraticCurveTo(40, -100, 36, -80);
-    ctx.quadraticCurveTo(32, -66, 26, -64); ctx.quadraticCurveTo(24, -90, 24, -112);
-    ctx.closePath(); ctx.fill();
-
-    // head, lifted and very pleased with itself
+    ctx.beginPath(); ctx.ellipse(-13, -24, 10, 5, -0.5, 0, Math.PI * 2); ctx.fill();
+    // belly button
+    ctx.strokeStyle = 'rgba(169, 99, 42, 0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(4, -4, 3, 0.3, Math.PI - 0.3); ctx.stroke();
+    // one emu feather balanced on top, bobbing with each breath
     ctx.save();
-    ctx.translate(26, -126);
-    ctx.rotate(-0.22);
-    ctx.scale(1.18, 1.18);
-    ctx.fillStyle = G;
-    ctx.beginPath(); ctx.moveTo(-14, -6); ctx.lineTo(-12, -34); ctx.lineTo(0, -12); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-3, -12); ctx.lineTo(4, -38); ctx.lineTo(12, -10); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = CR;
-    ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(-10, -27); ctx.lineTo(-3, -13); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(1, -13); ctx.lineTo(4, -31); ctx.lineTo(9, -12); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = G;
-    ctx.beginPath(); ctx.ellipse(0, 0, 17, 15, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(6, -9); ctx.lineTo(30, -5); ctx.quadraticCurveTo(38, -1, 32, 4); ctx.lineTo(8, 10);
-    ctx.closePath(); ctx.fill();
-    // tongue lolling out
-    ctx.fillStyle = '#e8615a';
-    ctx.beginPath(); ctx.ellipse(21, 10 + Math.sin(S.t * 4), 4.5, 7, 0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#c24a44'; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(21, 6); ctx.lineTo(22, 13); ctx.stroke();
-    // cream jaw and cheek
-    ctx.fillStyle = CR;
-    ctx.beginPath(); ctx.moveTo(4, 3); ctx.lineTo(31, 3); ctx.quadraticCurveTo(26, 9, 8, 11); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(-3, 6, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = INK;
-    ctx.beginPath(); ctx.ellipse(34, -3, 4, 3.2, 0, 0, Math.PI * 2); ctx.fill();
-    // closed happy eye and grin
-    ctx.strokeStyle = INK; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(4, -3, 4.5, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
-    ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.moveTo(11, 4); ctx.quadraticCurveTo(22, 7, 31, 3); ctx.stroke();
-    // emu feather hanging from the grin
-    ctx.save();
-    ctx.translate(12, 5);
-    ctx.rotate(0.5 + Math.sin(S.t * 3) * 0.12);
+    ctx.translate(6, -38);
+    ctx.rotate(-0.25);
     ctx.fillStyle = '#6b4e36';
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, 10, 2, 21); ctx.quadraticCurveTo(-5, 10, 0, 0); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(7, -11, 1, -24); ctx.quadraticCurveTo(-6, -11, 0, 0); ctx.fill();
     ctx.strokeStyle = '#3e2c20'; ctx.lineWidth = 1.1;
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(2, 11, 2, 21); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 2); ctx.quadraticCurveTo(2, -11, 1, -24); ctx.stroke();
     ctx.restore();
+    ctx.restore();
+
+    // near legs sticking up, paws flopped over
+    leg(-36, -34, -48, -76, -42 - kick * 0.5, -86 - kick, G, CR);  // near back leg
+    leg(40, -36, 54, -74, 62, -76, G, CR);                         // near front leg
+
+    // head lying on its side on the ground, chin up, fast asleep
+    ctx.save();
+    ctx.translate(64, -20);
+    ctx.rotate(-0.25);
+    // ears flopped back on the ground
+    ctx.fillStyle = GD;
+    ctx.beginPath(); ctx.ellipse(-16, 8, 14, 6, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = G;
+    ctx.beginPath(); ctx.ellipse(-12, 12, 13, 6, 0.3, 0, Math.PI * 2); ctx.fill();
+    // skull and muzzle
+    ctx.beginPath(); ctx.ellipse(0, 0, 18, 15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(6, -9); ctx.lineTo(32, -6); ctx.quadraticCurveTo(40, -2, 34, 4); ctx.lineTo(8, 10);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = CR;
+    ctx.beginPath(); ctx.moveTo(4, 3); ctx.lineTo(33, 3); ctx.quadraticCurveTo(28, 10, 8, 12); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-3, 6, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+    // tongue flopped out of the side of the mouth
+    ctx.fillStyle = '#e8615a';
+    ctx.beginPath(); ctx.ellipse(24, 11, 4, 6, 0.6, 0, Math.PI * 2); ctx.fill();
+    // nose
+    ctx.fillStyle = INK;
+    ctx.beginPath(); ctx.ellipse(36, -3, 4, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+    // sleeping eye and a contented smile
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(4, -5, 5, 0.2, Math.PI - 0.2); ctx.stroke();
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(12, 4); ctx.quadraticCurveTo(22, 7, 32, 3); ctx.stroke();
     ctx.fillStyle = 'rgba(232, 97, 90, 0.35)';
     ctx.beginPath(); ctx.ellipse(-2, 7, 4.5, 3, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+
+    // Zzz drifting up from its head
+    if (t > 1.2) {
+      ctx.fillStyle = '#fff3d6';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 3;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < 3; i++) {
+        const k = ((S.t * 0.5) + i / 3) % 1;
+        const zs = 12 + k * 12;
+        ctx.globalAlpha = Math.min(1, (1 - k) * 2);
+        ctx.font = zs + 'px ' + displayFont();
+        const zx = 78 + k * 30 + Math.sin(k * 6) * 5, zy = -46 - k * 70;
+        ctx.strokeText('z', zx, zy); ctx.fillText('z', zx, zy);
+      }
+      ctx.globalAlpha = 1;
+    }
 
     ctx.restore();
   }

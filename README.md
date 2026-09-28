@@ -21,5 +21,5 @@ The game is played with the phone upright. Every screen sees the same distance a
 - Collect quandong berries for points. A rare golden feather gives 5 seconds of invincibility.
 - Score = metres run + 10 per berry + 25 per bush smashed.
 - The top 5 scores are kept on the device (browser storage), with a name you can type in when you make the board.
-- Get caught and the dingo sits down with a very full tummy, surrounded by floating emu feathers.
+- Get caught and the dingo burps, then rolls onto its back with its legs in the air and a huge round tummy, fast asleep among the emu feathers.
 - The game gets faster the further you go, and new hazards appear: branches and termite mounds, then wombats and saltbush, then goannas, magpies, kangaroos and finally charging cassowaries. Fast animals get a flashing warning sign before they arrive.
