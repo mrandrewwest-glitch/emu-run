@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1b120d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Emu Run">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <!--GAME-START-->
 <title>Emu Run</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,6 +27,13 @@
   }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
+  /* Inside the iPhone app the page runs edge to edge: keep the game clear of
+     the notch, status bar and home indicator. */
+  html.native body {
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  html.native .keys { display: none; }
   body {
     margin: 0;
     background: var(--night);
@@ -262,6 +275,10 @@
 (() => {
   'use strict';
 
+  // window.Capacitor only exists inside the iPhone app, never on the web
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (NATIVE) document.documentElement.classList.add('native');
+
   // ---------- setup ----------
   const stage = document.getElementById('stage');
   const cvs = document.getElementById('game');
@@ -282,7 +299,8 @@
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     // Every screen sees the same distance ahead (MIN_W units), so a wide or
     // sideways screen gives no head start. Extra width is left as border.
-    const availH = document.body.clientHeight || window.innerHeight;
+    const bs = getComputedStyle(document.body);
+    const availH = (document.body.clientHeight || window.innerHeight) - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom);
     stage.style.maxWidth = Math.floor(availH * MIN_W / H) + 'px';
     const r = stage.getBoundingClientRect();
     cvs.width = Math.max(1, Math.round(r.width * dpr));

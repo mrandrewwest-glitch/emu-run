@@ -1,0 +1,95 @@
+# Builds the signed iPhone app on GitHub's Mac runners and uploads it straight
+# to App Store Connect, where it shows up under TestFlight. No Mac needed on
+# Westy's end for this step.
+#
+# Started by hand (Actions tab, "iOS TestFlight", Run workflow). It needs four
+# repository secrets, set once in Settings, Secrets and variables, Actions:
+#   APPLE_TEAM_ID    the 10-character Team ID (developer.apple.com, Membership details)
+#   ASC_KEY_ID       the Key ID of the App Store Connect API key
+#   ASC_ISSUER_ID    the Issuer ID shown above the keys list
+#   ASC_PRIVATE_KEY  the whole contents of the downloaded AuthKey_XXXX.p8 file
+#
+# Each run makes a one-off signing certificate and App Store profile with the
+# API key (native/scripts/ios-signing.js) and removes them afterwards, so
+# nothing else is stored and no test device ever has to be registered.
+name: iOS TestFlight
+on:
+  workflow_dispatch:
+jobs:
+  testflight:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults: { run: { working-directory: native } }
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the four secrets are set
+        run: |
+          for n in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
+            if [ -z "${!n}" ]; then echo "::error::The repository secret $n is missing."; exit 1; fi
+          done
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: native/package-lock.json }
+      - run: npm ci
+      - run: npm run www
+      - run: npx cap add ios && node scripts/prepare-ios.js
+      - name: App icon and launch screen
+        run: npx capacitor-assets generate --ios
+      - run: npx cap sync ios
+      - name: Read the bundle ID and version
+        run: |
+          echo "BUNDLE_ID=$(node -p "require('./capacitor.config.json').appId")" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+      - name: Put the API key where Xcode looks for it
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
+          echo "KEY_PATH=$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
+      - name: Make a one-off signing certificate and profile
+        run: node scripts/ios-signing.js setup
+        env:
+          BUNDLE_ID: ${{ env.BUNDLE_ID }}
+      - name: Tell the project to sign with them
+        run: |
+          node -e '
+            const fs = require("fs"), f = "ios/App/App.xcodeproj/project.pbxproj"; let p = fs.readFileSync(f, "utf8");
+            const add = `CODE_SIGN_STYLE = Manual; DEVELOPMENT_TEAM = ${process.env.APPLE_TEAM_ID}; PROVISIONING_PROFILE_SPECIFIER = "${process.env.PROFILE_NAME}"; "CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";`;
+            p = p.replace(/\s*CODE_SIGN_STYLE = Automatic;/g, "");
+            const before = p; p = p.replace(/INFOPLIST_FILE = App\/Info\.plist;/g, m => m + " " + add);
+            if (p === before) { console.error("::error::Could not find where to set signing in the Xcode project."); process.exit(1); }
+            fs.writeFileSync(f, p); console.log("Signing set on the app target");'
+      - name: Build and sign
+        working-directory: native/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/EmuRun.xcarchive" archive \
+            MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" | tail -60
+      - name: Upload to App Store Connect
+        working-directory: native/ios/App
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict><key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string></dict>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/EmuRun.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/out" \
+            -authenticationKeyPath "$KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tail -60
+      - name: Remove the one-off certificate, profile and key
+        if: always()
+        run: |
+          node scripts/ios-signing.js cleanup || true
+          rm -rf "$RUNNER_TEMP/keys"

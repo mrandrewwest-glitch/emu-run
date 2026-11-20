@@ -1,0 +1,5 @@
+# Keeps deploys to just the actual game (what a drag-and-drop onto
+# Netlify Drop has always shipped) - node_modules is dev/test-only and never
+# present on his machine when he deploys; .git is history, not game files.
+node_modules/
+.git/
