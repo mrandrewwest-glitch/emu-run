@@ -35,9 +35,9 @@ Store Connect.
 - `native/scripts/build-www.js` copies `index.html`, `manifest.webmanifest`
   and `icons/` into the app, and swaps the Google Fonts link for the fonts
   bundled in `native/fonts/`, so the app looks right with no connection.
-- `native/scripts/prepare-ios.js` sets the app name, portrait only (the game
-  is played upright), full screen on iPad, a light status bar and no
-  export-compliance question on upload.
+- `native/scripts/prepare-ios.js` sets the app name, portrait only on
+  iPhone, every orientation on iPad, full screen on iPad, a light status bar
+  and no export-compliance question on upload.
 - `native/scripts/ios-signing.js` makes a one-off signing certificate and
   App Store profile with the App Store Connect API key for each build, and
   removes both afterwards.
@@ -49,6 +49,23 @@ Store Connect.
   hint. On the web `window.Capacitor` never exists, so nothing changes there.
 - `privacy.html` is the privacy page for the App Store listing. It still
   needs a real contact email.
+
+### iPad
+
+The app runs on iPhone and iPad. iPads can be played upright or sideways:
+every screen sees the same distance ahead (wider screens get a border at
+the sides), so turning an iPad gives no advantage. Turning one mid-run gives
+a short "READY?" pause. The app always runs full screen on iPad, not in
+Split View. iPads in the app keep the keyboard hint, since many have
+keyboards; iPhones hide it.
+
+### App Store screenshots
+
+`store/screenshots/` has ready-made screenshots at the sizes App Store
+Connect asks for: the 13-inch iPad, upright (2048 × 2732) and sideways
+(2732 × 2048), and the 6.9-inch iPhone (1290 × 2796). Each set shows the
+start screen, a jump over a wombat or termite mound, and the dingo ending.
+Apple needs iPad screenshots because the app runs on iPad.
 
 ### One-time Apple setup
 

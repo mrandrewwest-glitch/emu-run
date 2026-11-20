@@ -33,7 +33,8 @@
     box-sizing: border-box;
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   }
-  html.native .keys { display: none; }
+  /* iPhones in the app have no keyboard; iPads often do, so they keep the hint */
+  @media (max-width: 600px) { html.native .keys { display: none; } }
   body {
     margin: 0;
     background: var(--night);
@@ -329,7 +330,15 @@
       if (o && o.lock) o.lock('portrait').catch(() => {});
     } catch (e) {}
   }
-  window.addEventListener('resize', () => { resize(); checkRotate(); });
+  // Turning a tablet mid-run re-lays out the screen: give a short READY? beat
+  let wasLandscape = window.innerWidth > window.innerHeight;
+  window.addEventListener('resize', () => {
+    const landscape = window.innerWidth > window.innerHeight;
+    if (landscape !== wasLandscape && S.mode === 'play' && !sideways) S.readyT = 1.2;
+    wasLandscape = landscape;
+    resize();
+    checkRotate();
+  });
   window.addEventListener('orientationchange', () => { setTimeout(() => { resize(); checkRotate(); }, 150); });
   resize();
 

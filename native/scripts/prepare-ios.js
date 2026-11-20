@@ -1,9 +1,11 @@
 // Run once after `cap add ios`: sets the Info.plist keys the generated Xcode
-// project doesn't know about on its own - display name, portrait only (the
-// game is played upright, and a sideways screen would see further ahead),
-// full screen on iPad (needed for a portrait-only app to pass upload checks),
-// and no export-compliance question on each upload (the app only uses
-// Apple's built-in HTTPS, and in fact makes no network calls at all).
+// project doesn't know about on its own - display name; portrait only on
+// iPhone (a sideways phone used to see further ahead); every orientation on
+// iPad, where landscape plays best and the game caps how far ahead any screen
+// sees; full screen on iPad (no Split View or Stage Manager windows, which
+// could be phone-sized and sideways); and no export-compliance question on
+// each upload (the app only uses Apple's built-in HTTPS, and in fact makes no
+// network calls at all).
 const fs = require('fs');
 const path = require('path');
 
@@ -19,7 +21,10 @@ const setKey = (key, xml) => {
 
 setKey('CFBundleDisplayName', '<string>Emu Run</string>');
 setKey('UISupportedInterfaceOrientations', '<array><string>UIInterfaceOrientationPortrait</string></array>');
-setKey('UISupportedInterfaceOrientations~ipad', '<array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string></array>');
+setKey(
+  'UISupportedInterfaceOrientations~ipad',
+  '<array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>'
+);
 setKey('UIRequiresFullScreen', '<true/>');
 setKey('ITSAppUsesNonExemptEncryption', '<false/>');
 setKey('UIStatusBarStyle', '<string>UIStatusBarStyleLightContent</string>');
