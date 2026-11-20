@@ -16,6 +16,14 @@
     "StatusBar": {
       "style": "DARK",
       "backgroundColor": "#1b120d"
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK"
     }
+  },
+  "android": {
+    "backgroundColor": "#1b120d"
   }
 }

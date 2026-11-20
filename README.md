@@ -86,3 +86,55 @@ Apple needs iPad screenshots because the app runs on iPad.
 
 Submitting for App Review (screenshots, age rating, privacy answers) is done
 by hand in App Store Connect afterwards.
+
+## Android app (Google Play)
+
+The same `native/` wrapper also builds the Android app. Package name:
+`com.emurun.westy` (the same ID as the iPhone app). It's built by GitHub
+Actions on GitHub's own computers, so nothing needs installing.
+
+- `native/scripts/prepare-android.js` locks phones to portrait and lets
+  tablets turn (same rule as iPhone and iPad), sets the version (the build
+  number goes up with every run, as Google Play requires), and signs with
+  the Play upload key when the build has one.
+- `native/resources/icon-foreground.png` and `icon-background.png` are the
+  two layers of Android's adaptive icon (the emu, and the sunset behind it),
+  so the icon looks right in any shape a phone cuts it to.
+- The game reads Android's status bar and gesture bar sizes from the
+  `--safe-area-inset-*` values Capacitor provides, so it stays clear of
+  them.
+- `store/google-play/` has the Play Store listing graphics: the 512 × 512
+  icon, the 1024 × 500 feature graphic, and phone (1080 × 1920) and tablet
+  (1440 × 2560 and 2560 × 1440) screenshots.
+
+### Try it on an Android phone now
+
+**Actions tab → Android build → Run workflow.** Before the upload key is
+set up, this makes a test `.apk` (on the run's page under Artifacts). Unzip
+it, copy the `.apk` to an Android phone, open it and allow installing
+from that source.
+
+### One-time Google Play setup
+
+1. **Google Play Console** (play.google.com/console): a developer account
+   costs US$25 once. Create the app as **Emu Run**, a game, free.
+2. **The upload key** (every update must be signed with the same one):
+   1. GitHub → this repo → Settings → Secrets and variables → Actions →
+      add `ANDROID_KEYSTORE_PASSWORD`: a long password you make up, at
+      least 16 characters. Keep it in a password manager.
+   2. Actions tab → **Android upload key** → Run workflow. Open
+      `upload-key.txt` from the run's Artifacts and paste its whole
+      contents into a second secret, `ANDROID_KEYSTORE_BASE64`. Save a copy
+      of the file with the password, then delete the run (… menu on the
+      run's page). The workflow refuses to make a second key.
+   Never paste the password or key into a chat.
+3. Actions tab → **Android build** → Run workflow. It now makes
+   `…-google-play.aab`. In Play Console, upload it to a testing track
+   (Internal testing is quickest), and let Google manage the app signing
+   key when it asks (Play App Signing).
+4. Fill in the store listing with the graphics in `store/google-play/`, the
+   privacy page (`privacy.html` on the website), the content rating
+   questionnaire and the data safety form (the game collects no data).
+
+New personal Play developer accounts must run a closed test with at least
+12 testers for 14 days before the app can go to production.

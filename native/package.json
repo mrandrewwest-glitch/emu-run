@@ -2,12 +2,14 @@
   "name": "emu-run-native",
   "private": true,
   "version": "1.0.0",
-  "description": "Capacitor shell that wraps the Emu Run web game for the iOS App Store. The game itself (index.html in the repo root) is untouched and still deploys to the web as before; this folder only copies it into a native wrapper at build time, in CI, on demand.",
+  "description": "Capacitor shell that wraps the Emu Run web game for the iOS App Store and Google Play. The game itself (index.html in the repo root) is untouched and still deploys to the web as before; this folder only copies it into a native wrapper at build time, in CI, on demand.",
   "scripts": {
     "www": "node scripts/build-www.js",
-    "ios:add": "cap add ios && node scripts/prepare-ios.js"
+    "ios:add": "cap add ios && node scripts/prepare-ios.js",
+    "android:add": "cap add android && node scripts/prepare-android.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
     "@capacitor/core": "^8.6.0",
     "@capacitor/ios": "^8.6.0",
     "@capacitor/splash-screen": "^8.0.2",

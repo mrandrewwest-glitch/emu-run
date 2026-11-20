@@ -1,0 +1,71 @@
+# Builds the Android app on GitHub's computers. Started by hand (Actions tab,
+# "Android build", Run workflow).
+#
+# With the Google Play upload key set up (two repository secrets, see the
+# README's "Android app" section):
+#   ANDROID_KEYSTORE_BASE64    the upload key, made by the "Android upload key" workflow
+#   ANDROID_KEYSTORE_PASSWORD  the password you chose for it
+# it makes the signed .aab to upload to Google Play, plus a signed .apk.
+# Without them it makes a test .apk only, which can be installed on an
+# Android phone directly.
+#
+# The results are on the run's page, under Artifacts.
+name: Android build
+on:
+  workflow_dispatch:
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults: { run: { working-directory: native } }
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: native/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npm run www
+      - run: npx cap add android && node scripts/prepare-android.js
+      - name: App icon and launch screen
+        run: npx capacitor-assets generate --android
+      - run: npx cap sync android
+      - name: Read the version
+        run: echo "APP_VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+      - name: Put the upload key in place
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::notice::No upload key set up yet, so this run makes a test .apk only (not for Google Play)."
+            exit 0
+          fi
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then echo "::error::ANDROID_KEYSTORE_BASE64 is set but ANDROID_KEYSTORE_PASSWORD is missing."; exit 1; fi
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/keys/upload.p12"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/keys/upload.p12" >> "$GITHUB_ENV"
+      - name: Build
+        working-directory: native/android
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          name="emu-run-${APP_VERSION}-build${VERSION_CODE}"
+          if [ -n "$ANDROID_KEYSTORE_PATH" ]; then
+            ./gradlew --no-daemon bundleRelease assembleRelease | tail -40
+            cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/out/${name}-google-play.aab"
+            cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/out/${name}.apk"
+          else
+            ./gradlew --no-daemon assembleDebug | tail -40
+            cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/out/${name}-test.apk"
+          fi
+          ls -la "$RUNNER_TEMP/out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emu-run-android-build${{ github.run_number }}
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+      - name: Remove the upload key from the build machine
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

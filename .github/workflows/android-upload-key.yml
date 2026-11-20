@@ -1,0 +1,41 @@
+# Makes the Google Play upload key. Run it ONCE, by hand (Actions tab,
+# "Android upload key", Run workflow), after adding the repository secret
+#   ANDROID_KEYSTORE_PASSWORD   a long password you choose (at least 16 characters)
+# The key comes out under Artifacts as upload-key.txt. Copy its whole contents
+# into a second repository secret, ANDROID_KEYSTORE_BASE64, keep a copy
+# somewhere safe (a password manager), then delete this run (the "..." menu
+# on the run's page) so the file isn't left on GitHub. The file only works
+# with the password, and is kept for one day at most.
+#
+# Every update on Google Play has to be signed with this same key, so the
+# workflow refuses to make a second one once ANDROID_KEYSTORE_BASE64 is set.
+name: Android upload key
+on:
+  workflow_dispatch:
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      EXISTING: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - name: Check the password secret is set, and no key exists yet
+        run: |
+          if [ -n "$EXISTING" ]; then echo "::error::An upload key is already set up (ANDROID_KEYSTORE_BASE64). A new one would stop Google Play accepting updates signed with the old one, so this run stops here."; exit 1; fi
+          if [ -z "$PW" ]; then echo "::error::Add the repository secret ANDROID_KEYSTORE_PASSWORD first."; exit 1; fi
+          if [ "${#PW}" -lt 16 ]; then echo "::error::ANDROID_KEYSTORE_PASSWORD needs at least 16 characters."; exit 1; fi
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Make the key
+        run: |
+          mkdir -p "$RUNNER_TEMP/key"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/key/upload.p12" -storetype PKCS12 -alias upload \
+            -keyalg RSA -keysize 2048 -validity 10000 -storepass "$PW" -keypass "$PW" -dname "CN=Emu Run upload key"
+          base64 -w0 "$RUNNER_TEMP/key/upload.p12" > "$RUNNER_TEMP/key/upload-key.txt"
+          rm "$RUNNER_TEMP/key/upload.p12"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-upload-key
+          path: ${{ runner.temp }}/key/upload-key.txt
+          retention-days: 1

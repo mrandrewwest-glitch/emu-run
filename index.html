@@ -27,13 +27,19 @@
   }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
-  /* Inside the iPhone app the page runs edge to edge: keep the game clear of
-     the notch, status bar and home indicator. */
+  /* Inside the phone apps the page runs edge to edge: keep the game clear of
+     the notch, status bar and home indicator / gesture bar. On Android,
+     Capacitor passes the sizes as --safe-area-inset-* (older Android
+     WebViews report env() as 0); on iPhone env() has them. */
   html.native body {
     box-sizing: border-box;
-    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    padding:
+      var(--safe-area-inset-top, env(safe-area-inset-top, 0px))
+      var(--safe-area-inset-right, env(safe-area-inset-right, 0px))
+      var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+      var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   }
-  /* iPhones in the app have no keyboard; iPads often do, so they keep the hint */
+  /* Phones in the app have no keyboard; tablets often do, so they keep the hint */
   @media (max-width: 600px) { html.native .keys { display: none; } }
   body {
     margin: 0;
